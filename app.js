@@ -1,6 +1,10 @@
 const express = require('express')
 const app = express()
 const port = 3000
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const { isSet } = require('util/types');
 
 
 app.get('/', (req, res) => {
@@ -26,12 +30,33 @@ app.get('/', (req, res) => {
   });
 })
 
-app.get('/getPhone', (req, res) => {
 
-})
+app.get('/getPhone', (req, res) => {
+    const port = req.query.port;
+    console.log('port: ', port);
+    const staticFolderPath = path.join(__dirname, 'static');
+    const fileName = `list_phone_${port}.txt`;
+    const filePath = path.join(staticFolderPath, fileName);
+
+    if (fs.existsSync(filePath)) {
+        const data = fs.readFileSync(filePath, 'utf8');
+        console.log(data);
+
+        let listPhones = data.split(',');
+        const firstPhone = listPhones.shift();
+
+        fs.writeFileSync(filePath, listPhones.join(','), 'utf8');
+
+        res.send(firstPhone);
+    } else {
+        console.log('File not found');
+        res.status(404).send('File Not Found');
+    }
+});
+    
 
 app.get('/getCode', (req, res) => {
-  
+
 })
 
 app.get('/resetPort', (req, res) => {
