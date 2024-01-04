@@ -1,0 +1,11 @@
+{
+  "name": "ditu",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.4",
+    "express": "^4.18.2",
+    "nodemon": "^3.0.2"
+  }
+}
