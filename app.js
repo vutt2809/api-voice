@@ -90,20 +90,33 @@ app.post('/uploadFromPath', (req, res) => {
   formData.append('file', fs.createReadStream(absolutePath));
   // const formDataHeaders = formData.getHeaders();
   // console.log(formDataHeaders);
-  console.log(formData);
-  axios.post(uploadApiUrl, formData, {
-    headers: {
-      'Content-Type': `multipart/form-data`,
-    },
-  })
-  .then(response => {
-    // Trả về thông báo thành công từ API upload
-    res.json({ message: response.data });
-  })
+  // Create a readable stream for the file
+  const fileStream = fs.createReadStream(absolutePath);
+  let fileBuffer = Buffer.from([]);
+  fileStream.on('data', chunk => {
+    fileBuffer = Buffer.concat([fileBuffer, chunk]);
+  });
+
+  fileStream.on('end', () => {
+    // Convert the buffer to a base64-encoded string
+    const fileBase64 = fileBuffer.toString('base64');
+
+    // Build the form data string
+    const formDataString = `--myboundary\r\nContent-Disposition: form-data; name="file"; filename="${path.basename(absolutePath)}"\r\nContent-Type: application/octet-stream\r\n\r\n${fileBase64}\r\n--myboundary--`;
+
+    // Make the Axios request
+    axios.post(uploadApiUrl, formDataString, {
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=myboundary`,
+      },
+    })
+    .then(response => {
+      res.json({ message: response.data });
+    })
     .catch(error => {
-    console.log("ERROR: " + error);
-    // Trả về lỗi nếu có lỗi trong quá trình gọi API upload
-    res.status(500).json({ error: 'Lỗi khi gọi API upload.' });
+      console.log("ERROR: " + error);
+      res.status(500).json({ error: 'Lỗi khi gọi API upload.' });
+    });
   });
 });
 
