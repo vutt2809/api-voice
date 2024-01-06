@@ -1,68 +1,119 @@
-const express = require('express')
-const app = express()
-const port = 3000
-const axios = require('axios');
+const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { isSet } = require('util/types');
+const app = express();
 
 
-app.get('/', (req, res) => {
-  axios.get('https://www.firefox.fun/yhapi.ashx?act=getPhone&token=63e825cd6b0512c1eb5b85a0bbcb3b24_18800&iid=1008&did=vnm-1008-99991')
-  .then(response => {
-    const data = response.split('|');
-    console.log('dataPort', dataPort);
+app.get('/getListPhone', (req, res) => {
+    const staticFolderPath = path.join(__dirname, 'static');
+    const phoneList = [];
 
-    const port = data[data.length - 2];
-    const phone = data[data.length - 1];
+    fs.readdirSync(staticFolderPath).forEach((file) => {
+        const match = file.match(/^list_phone_(\d+)\.txt$/);
+        if (match) {
+            const port = match[1];
+            const filePath = path.join(staticFolderPath, file);
+            const data = fs.readFileSync(filePath, 'utf8');
+            
+            let status = 1; // Default status is 1 (enabled)
 
-    console.log('port: ', port);
-    console.log('phone: ', phone);
+            // Check if the file starts with "disable_"
+            if (data.startsWith('disable_')) {
+                status = 0; // If "disable_", set status to 0 (disabled)
+            }
 
-    let phoneArray = [];
-    for (let i = 0; i < 11; i++) {
-      let newPhone = phone + i;
-      phoneArray.push(newPhone.toString());
-    }
-  })
-  .catch(error => {
-    console.error(error);
-  });
-})
+            const numbers = data.replace(/^disable_/, '').split(',');
+
+            numbers.forEach((number) => {
+                if (number !== '') {
+                    phoneList.push({ port, num: number, status });
+                }
+            });
+        }
+    });
+
+    res.json(phoneList);
+});
 
 
 app.get('/getPhone', (req, res) => {
-    const port = req.query.port;
-    console.log('port: ', port);
+    const staticFolderPath = path.join(__dirname, 'static');
+    
+    let minPort = Infinity;
+    let minPortFileName = '';
+    fs.readdirSync(staticFolderPath).forEach((file) => {
+        const match = file.match(/^list_phone_(\d+)\.txt$/);
+        if (match) {
+            const port = parseInt(match[1], 10);
+            const filePath = path.join(staticFolderPath, file);
+            
+            const data = fs.readFileSync(filePath, 'utf8');
+
+            // if (!data.trim() || data.trim() === 'disable_') {
+            //     fs.unlinkSync(filePath); // Delete the file
+            //     return;
+            // }
+
+            if (!data.startsWith('disable')) {
+                if (port < minPort) {
+                    minPort = port;
+                    minPortFileName = file;
+                }
+            }
+        }
+    });
+
+    if (minPort === Infinity) {
+        res.status(404).send('Không có port');
+        return;
+    }
+
+    const filePath = path.join(staticFolderPath, minPortFileName);
+    const data = fs.readFileSync(filePath, 'utf8');
+    const listPhones = data.split(',');
+
+    if (listPhones.length === 0) {
+        res.status(404).send(`Không có phone ở port ${minPort}`);
+        return;
+    }
+
+    const firstPhone = listPhones.shift();
+    fs.writeFileSync(filePath, 'disable_' + listPhones.join(','), 'utf8');
+
+    res.send(firstPhone);
+});
+
+app.get('/active/:port', (req, res) => {
+    const port = req.params.port;
     const staticFolderPath = path.join(__dirname, 'static');
     const fileName = `list_phone_${port}.txt`;
     const filePath = path.join(staticFolderPath, fileName);
 
     if (fs.existsSync(filePath)) {
-        const data = fs.readFileSync(filePath, 'utf8');
-        console.log(data);
+        let data = fs.readFileSync(filePath, 'utf8');
+        
+        // Check if the file is empty or contains only "disable_"
+        if (!data.trim() || data.trim() === 'disable_') {
+            res.status(400).send(`Không có port tương ứng với ${port}`);
+            return;
+        }
 
-        let listPhones = data.split(',');
-        const firstPhone = listPhones.shift();
-
-        fs.writeFileSync(filePath, listPhones.join(','), 'utf8');
-
-        res.send(firstPhone);
+        if (data.startsWith('disable_')) {
+            data = data.substring('disable_'.length);
+            fs.writeFileSync(filePath, data, 'utf8');
+            res.send(`Port ${port} đã được bật`);
+        } else {
+            console.log(`Port ${port} is already enabled`);
+            res.status(400).send(`Port ${port} đã được bật`);
+        }
     } else {
-        console.log('File not found');
-        res.status(404).send('File Not Found');
+        console.log(`Port ${port} does not exist`);
+        res.status(400).send(`Port ${port} không tồn tại`);
     }
 });
-    
 
-app.get('/getCode', (req, res) => {
 
-})
 
-app.get('/resetPort', (req, res) => {
-  
-})
-
-app.listen(port, () => {
-  console.log(`App listening on port 2 ${port}`)
-})
+app.listen(5000, () => {
+    console.log('Server is running on port 5000');
+});
