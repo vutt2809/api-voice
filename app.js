@@ -6,33 +6,43 @@ const axios = require('axios')
 const app = express()
 const port = 5000
 app.use(express.json())
+const staticFolderPath = path.join(__dirname, 'static')
 
 app.get('/', (req, res) => {
-    axios
-        .get('https://www.firefox.fun/yhapi.ashx?act=getPhone&token=63e825cd6b0512c1eb5b85a0bbcb3b24_18800&iid=1008&did=vnm-1008-99991')
-        .then((response) => {
-            const data = response.split('|')
-            console.log('dataPort', dataPort)
+    let checkData = ''
+    const filePath = path.join(staticFolderPath, file)
 
-            const port = data[data.length - 2]
-            const phone = data[data.length - 1]
+    while (checkData !== '0|-1') {
+        axios
+            .get('https://www.firefox.fun/yhapi.ashx?act=getPhone&token=63e825cd6b0512c1eb5b85a0bbcb3b24_18800&iid=1008&did=vnm-1008-99991')
+            .then((response) => {
+                const data = response.split('|')
+                console.log('dataPort', dataPort)
 
-            console.log('port: ', port)
-            console.log('phone: ', phone)
+                const port = data[data.length - 2]
+                const phone = data[data.length - 1]
+                const id = data[1]
 
-            let phoneArray = []
-            for (let i = 0; i < 11; i++) {
-                let newPhone = phone + i
-                phoneArray.push(newPhone.toString())
-            }
-        })
-        .catch((error) => {
-            console.error(error)
-        })
+                console.log('port: ', port)
+                console.log('phone: ', phone)
+                console.log('id: ', id)
+
+                axios.get(`http://www.firefox.fun/yhapi.ashx?act=addBlack&token=b7c94daad5e3dd71ffca9298976ec0d4_3&pkey=${id}&reason=used`)
+
+                let phoneArray = []
+                for (let i = 0; i < 11; i++) {
+                    let newPhone = phone + i.toString()
+                    phoneArray.push(newPhone.toString())
+                    fs.writeFileSync(filePath, phoneArray.join(','), 'utf8')
+                }
+            })
+            .catch((error) => {
+                console.error(error)
+            })
+    }
 })
 
 app.get('/getListPhone', (req, res) => {
-    const staticFolderPath = path.join(__dirname, 'static')
     const phoneList = []
 
     fs.readdirSync(staticFolderPath).forEach((file) => {
@@ -42,11 +52,10 @@ app.get('/getListPhone', (req, res) => {
             const filePath = path.join(staticFolderPath, file)
             const data = fs.readFileSync(filePath, 'utf8')
 
-            let status = 1 // Default status is 1 (enabled)
+            let status = 1
 
-            // Check if the file starts with "disable_"
             if (data.startsWith('disable_')) {
-                status = 0 // If "disable_", set status to 0 (disabled)
+                status = 0
             }
 
             const numbers = data.replace(/^disable_/, '').split(',')
@@ -63,8 +72,6 @@ app.get('/getListPhone', (req, res) => {
 })
 
 app.get('/getPhone', (req, res) => {
-    const staticFolderPath = path.join(__dirname, 'static')
-
     let minPort = Infinity
     let minPortFileName = ''
     fs.readdirSync(staticFolderPath).forEach((file) => {
@@ -76,8 +83,9 @@ app.get('/getPhone', (req, res) => {
             const data = fs.readFileSync(filePath, 'utf8')
 
             // if (!data.trim() || data.trim() === 'disable_') {
-            //     fs.unlinkSync(filePath); // Delete the file
-            //     return;
+            //     console.log('here')
+            //     fs.unlinkSync(filePath) // Delete the file
+            //     return
             // }
 
             if (!data.startsWith('disable')) {
@@ -106,12 +114,16 @@ app.get('/getPhone', (req, res) => {
     const firstPhone = listPhones.shift()
     fs.writeFileSync(filePath, 'disable_' + listPhones.join(','), 'utf8')
 
+    // Ghi đè hoặc tạo mới file
+    const newFilePath = path.join(staticFolderPath, 'new_phone.txt')
+    const newPhoneData = `${minPort}_${firstPhone}\n`
+    fs.writeFileSync(newFilePath, newPhoneData, { flag: 'w' }) // 'w' để ghi đè file nếu nó đã tồn tại
+
     res.send(firstPhone)
 })
 
 app.get('/active/:port', (req, res) => {
     const port = req.params.port
-    const staticFolderPath = path.join(__dirname, 'static')
     const fileName = `list_phone_${port}.txt`
     const filePath = path.join(staticFolderPath, fileName)
 
