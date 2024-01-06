@@ -5,6 +5,7 @@ const fs = require('fs')
 const axios = require('axios')
 const app = express()
 const port = 5000
+let counter = 0
 app.use(express.json())
 const staticFolderPath = path.join(__dirname, 'static')
 
@@ -71,6 +72,27 @@ app.get('/getListPhone', (req, res) => {
     res.json(phoneList)
 })
 
+app.get('/getListPhoneByPort', (req, res) => {
+    const phoneList = []
+    fs.readdirSync(staticFolderPath).forEach((file) => {
+        const match = file.match(/^list_phone_(\d+)\.txt$/)
+        if (match) {
+            const port = match[1]
+            const filePath = path.join(staticFolderPath, file)
+            const data = fs.readFileSync(filePath, 'utf8')
+            if (!data.startsWith('disable_')) {
+                const numbers = data.replace(/^disable_/, '').split(',')
+                numbers.forEach((number) => {
+                    if (number !== '') {
+                        phoneList.push({ port, num: number, status: 1 })
+                    }
+                })
+            }
+        }
+    })
+    res.json(phoneList)
+})
+
 app.get('/getPhone', (req, res) => {
     let minPort = Infinity
     let minPortFileName = ''
@@ -116,10 +138,17 @@ app.get('/getPhone', (req, res) => {
 
     // Ghi đè hoặc tạo mới file
     const newFilePath = path.join(staticFolderPath, 'new_phone.txt')
-    const newPhoneData = `${minPort}_${firstPhone}\n`
-    fs.writeFileSync(newFilePath, newPhoneData, { flag: 'w' }) // 'w' để ghi đè file nếu nó đã tồn tại
+    const newPhoneData = `${minPort}-${firstPhone}\n`
+    fs.writeFileSync(newFilePath, newPhoneData, { flag: 'a' })
 
-    res.send(firstPhone)
+    // Ghi đè hoặc tạo mới file count.txt
+    const countFilePath = path.join(staticFolderPath, 'count.txt')
+    counter += 1
+    console.log(counter)
+
+    fs.writeFileSync(countFilePath, counter.toString(), 'utf8', { flag: 'w' })
+
+    res.send(`${minPort}-${firstPhone}`)
 })
 
 app.get('/active/:port', (req, res) => {
