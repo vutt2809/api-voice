@@ -61,9 +61,9 @@ app.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).send('Không có file được tải lên.');
   }
-
+  const filePath = req.file.path;
   // Thành công, trả về thông báo
-  res.send('File đã được tải lên thành công.');
+  res.send(`File đã được tải lên thành công tại|->http://localhost:3000/${filePath}.`);
 });
 
 // Route để nhận đường dẫn và gọi API upload
@@ -110,7 +110,8 @@ app.post('/uploadFromPath', (req, res) => {
         'Content-Type': `multipart/form-data; boundary=myboundary`,
       },
     })
-    .then(response => {
+      .then(response => {
+      fs.unlinkSync(absolutePath);
       res.json({ message: response.data });
     })
     .catch(error => {
