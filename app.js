@@ -8,15 +8,19 @@ const port = 5000
 let counter = 0
 app.use(express.json())
 const staticFolderPath = path.join(__dirname, 'static')
+const countFilePath = path.join(staticFolderPath, 'count.txt')
+const currentFilePath = path.join(staticFolderPath, 'current_phone.txt')
+const newPhonetFilePath = path.join(staticFolderPath, 'new_phone.txt')
 
 app.get('/', (req, res) => {
     let checkData = ''
     const filePath = path.join(staticFolderPath, file)
 
-    while (checkData !== '0|-1') {
+    while (checkData.trim() !== '0|-1') {
         axios
             .get('https://www.firefox.fun/yhapi.ashx?act=getPhone&token=63e825cd6b0512c1eb5b85a0bbcb3b24_18800&iid=1008&did=vnm-1008-99991')
             .then((response) => {
+                checkData = response
                 const data = response.split('|')
                 console.log('dataPort', dataPort)
 
@@ -72,8 +76,14 @@ app.get('/getListPhone', (req, res) => {
     res.json(phoneList)
 })
 
-app.get('/getListPhoneByPort', (req, res) => {
+app.get('/get-list-phone-active', (req, res) => {
     const phoneList = []
+
+    // Xoá dữ liệu cũ
+    fs.writeFileSync(currentFilePath, '', 'utf8')
+    fs.writeFileSync(countFilePath, '0', 'utf8')
+    fs.writeFileSync(newPhonetFilePath, '', 'utf8')
+
     fs.readdirSync(staticFolderPath).forEach((file) => {
         const match = file.match(/^list_phone_(\d+)\.txt$/)
         if (match) {
@@ -82,14 +92,15 @@ app.get('/getListPhoneByPort', (req, res) => {
             const data = fs.readFileSync(filePath, 'utf8')
             if (!data.startsWith('disable_')) {
                 const numbers = data.replace(/^disable_/, '').split(',')
-                numbers.forEach((number) => {
-                    if (number !== '') {
-                        phoneList.push({ port, num: number, status: 1 })
-                    }
-                })
+                const firstPhone = numbers.shift()
+                phoneList.push({ port, num: firstPhone, status: 1 })
+                fs.writeFileSync(filePath, 'disable_' + numbers.join(','), 'utf8')
             }
         }
     })
+
+    const jsonString = JSON.stringify(phoneList, null, 2)
+    fs.writeFileSync(currentFilePath, jsonString, 'utf8')
     res.json(phoneList)
 })
 
@@ -149,6 +160,31 @@ app.get('/getPhone', (req, res) => {
     fs.writeFileSync(countFilePath, counter.toString(), 'utf8', { flag: 'w' })
 
     res.send(`${minPort}-${firstPhone}`)
+})
+
+app.get('/get-phone', (req, res) => {
+    const data = fs.readFileSync(currentFilePath, 'utf8')
+    const listPhone = JSON.parse(data)
+    console.log('list current phone: ', listPhone)
+
+    const newPhone = listPhone.shift()
+    console.log('listphone: ', listPhone)
+    fs.writeFileSync(currentFilePath, JSON.stringify(listPhone, null, 2), 'utf8', { flag: 'w' })
+
+    const newPhoneData = `${newPhone.port}-${newPhone.num}\n`
+    fs.writeFileSync(newPhonetFilePath, newPhoneData, { flag: 'a' })
+
+    counter += 1
+    console.log(counter)
+
+    fs.writeFileSync(countFilePath, counter.toString(), 'utf8', { flag: 'w' })
+    res.send(`${newPhone.port}-${newPhone.num}`)
+})
+
+app.get('/get-list-current-phone', (req, res) => {
+    const data = fs.readFileSync(currentFilePath, 'utf8')
+    const listPhone = data ? JSON.parse(data) : []
+    res.json(listPhone)
 })
 
 app.get('/active/:port', (req, res) => {
