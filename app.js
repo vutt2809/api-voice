@@ -18,15 +18,17 @@ const newPhonetFilePath = path.join(staticFolderPath, 'new_phone.txt')
 app.get('/', (req, res) => {
     let checkData = ''
 
-    while (checkData.trim() !== '0|-1') {
+    for (let i = 0; i < 100; i++) {
         axios
             .get('https://www.firefox.fun/yhapi.ashx?act=getPhone&token=63e825cd6b0512c1eb5b85a0bbcb3b24_18800&iid=1008&did=vnm-1008-99991')
             .then((response) => {
+                console.log('===================> check lan ', i)
                 checkData = response.data
+                console.log('check Data: ', checkData)
                 const data = response.data.split('|')
-                console.log('dataPort', dataPort)
+                console.log('data array:', data)
 
-                const port = data[data.length - 2]
+                const port = data[data.length - 2].replace('COM', '')
                 const phone = data[data.length - 1]
                 const id = data[1]
 
@@ -36,18 +38,22 @@ app.get('/', (req, res) => {
 
                 axios.get(`http://www.firefox.fun/yhapi.ashx?act=addBlack&token=b7c94daad5e3dd71ffca9298976ec0d4_3&pkey=${id}&reason=used`)
 
-                const filePath = path.join(staticFolderPath, `list_phone${port}.txt`)
-                let phoneArray = []
-                for (let i = 0; i < 11; i++) {
-                    let newPhone = phone + i.toString()
-                    phoneArray.push(newPhone.toString())
-                    fs.writeFileSync(filePath, phoneArray.join(','), 'utf8')
+                const filePath = path.join(staticFolderPath, `list_phone_${port}.txt`)
+
+                if (port !== 0) {
+                    let phoneArray = []
+                    for (let i = 0; i < 11; i++) {
+                        let newPhone = phone + `${i}`
+                        phoneArray.push(newPhone.toString())
+                        fs.writeFileSync(filePath, phoneArray.join(','), 'utf8')
+                    }
                 }
             })
             .catch((error) => {
                 console.error(error)
             })
     }
+    res.send('Đã lấy phone')
 })
 
 app.get('/getListPhone', (req, res) => {
@@ -86,6 +92,18 @@ app.get('/get-list-phone-active', (req, res) => {
     fs.writeFileSync(currentFilePath, '', 'utf8')
     fs.writeFileSync(countFilePath, '0', 'utf8')
     fs.writeFileSync(newPhonetFilePath, '', 'utf8')
+    const zeroFile = path.join(staticFolderPath, 'list_phone_0.txt')
+
+    if (fs.existsSync(zeroFile)) {
+        try {
+            fs.unlinkSync(zeroFile)
+            console.log('File deleted successfully.')
+        } catch (error) {
+            console.error('Error deleting file:', error)
+        }
+    } else {
+        console.log('File does not exist.')
+    }
 
     fs.readdirSync(staticFolderPath).forEach((file) => {
         const match = file.match(/^list_phone_(\d+)\.txt$/)
@@ -179,21 +197,25 @@ app.get('/getPhone', (req, res) => {
 
 app.get('/get-phone', (req, res) => {
     const data = fs.readFileSync(currentFilePath, 'utf8')
-    const listPhone = JSON.parse(data)
-    console.log('list current phone: ', listPhone)
+    if (JSON.parse(data).length === 0) {
+        res.json(-1)
+    } else {
+        const listPhone = JSON.parse(data)
+        console.log('list current phone: ', listPhone)
 
-    const newPhone = listPhone.shift()
-    console.log('listphone: ', listPhone)
-    fs.writeFileSync(currentFilePath, JSON.stringify(listPhone, null, 2), 'utf8', { flag: 'w' })
+        const newPhone = listPhone.shift()
+        console.log('listphone: ', listPhone)
+        fs.writeFileSync(currentFilePath, JSON.stringify(listPhone, null, 2), 'utf8', { flag: 'w' })
 
-    const newPhoneData = `${newPhone.port}-${newPhone.num}\n`
-    fs.writeFileSync(newPhonetFilePath, newPhoneData, { flag: 'a' })
+        const newPhoneData = `${newPhone.port}-${newPhone.num}\n`
+        fs.writeFileSync(newPhonetFilePath, newPhoneData, { flag: 'a' })
 
-    counter += 1
-    console.log(counter)
+        counter += 1
+        console.log(counter)
 
-    fs.writeFileSync(countFilePath, counter.toString(), 'utf8', { flag: 'w' })
-    res.send(`${newPhone.port}-${newPhone.num}`)
+        fs.writeFileSync(countFilePath, counter.toString(), 'utf8', { flag: 'w' })
+        res.send(`${newPhone.port}-${newPhone.num}`)
+    }
 })
 
 app.get('/get-list-current-phone', (req, res) => {
