@@ -56,35 +56,7 @@ app.get('/', (req, res) => {
     res.send('Đã lấy phone')
 })
 
-app.get('/getListPhone', (req, res) => {
-    const phoneList = []
-
-    fs.readdirSync(staticFolderPath).forEach((file) => {
-        const match = file.match(/^list_phone_(\d+)\.txt$/)
-        if (match) {
-            const port = match[1]
-            const filePath = path.join(staticFolderPath, file)
-            const data = fs.readFileSync(filePath, 'utf8')
-
-            let status = 1
-
-            if (data.startsWith('disable_')) {
-                status = 0
-            }
-
-            const numbers = data.replace(/^disable_/, '').split(',')
-
-            numbers.forEach((number) => {
-                if (number !== '') {
-                    phoneList.push({ port, num: number, status })
-                }
-            })
-        }
-    })
-
-    res.json(phoneList)
-})
-
+// Láy phone đã active
 app.get('/get-list-phone-active', (req, res) => {
     const phoneList = []
 
@@ -125,6 +97,7 @@ app.get('/get-list-phone-active', (req, res) => {
     res.json(phoneList)
 })
 
+// Reset về đàu
 app.get('/reset', (req, res) => {
     const files = fs.readdirSync(staticFolderPath)
 
@@ -137,64 +110,7 @@ app.get('/reset', (req, res) => {
     res.send('reset phone thành công')
 })
 
-app.get('/getPhone', (req, res) => {
-    let minPort = Infinity
-    let minPortFileName = ''
-    fs.readdirSync(staticFolderPath).forEach((file) => {
-        const match = file.match(/^list_phone_(\d+)\.txt$/)
-        if (match) {
-            const port = parseInt(match[1], 10)
-            const filePath = path.join(staticFolderPath, file)
-
-            const data = fs.readFileSync(filePath, 'utf8')
-
-            // if (!data.trim() || data.trim() === 'disable_') {
-            //     console.log('here')
-            //     fs.unlinkSync(filePath) // Delete the file
-            //     return
-            // }
-
-            if (!data.startsWith('disable')) {
-                if (port < minPort) {
-                    minPort = port
-                    minPortFileName = file
-                }
-            }
-        }
-    })
-
-    if (minPort === Infinity) {
-        res.status(404).send('Không có port')
-        return
-    }
-
-    const filePath = path.join(staticFolderPath, minPortFileName)
-    const data = fs.readFileSync(filePath, 'utf8')
-    const listPhones = data.split(',')
-
-    if (listPhones.length === 0) {
-        res.status(404).send(`Không có phone ở port ${minPort}`)
-        return
-    }
-
-    const firstPhone = listPhones.shift()
-    fs.writeFileSync(filePath, 'disable_' + listPhones.join(','), 'utf8')
-
-    // Ghi đè hoặc tạo mới file
-    const newFilePath = path.join(staticFolderPath, 'new_phone.txt')
-    const newPhoneData = `${minPort}-${firstPhone}\n`
-    fs.writeFileSync(newFilePath, newPhoneData, { flag: 'a' })
-
-    // Ghi đè hoặc tạo mới file count.txt
-    const countFilePath = path.join(staticFolderPath, 'count.txt')
-    counter += 1
-    console.log(counter)
-
-    fs.writeFileSync(countFilePath, counter.toString(), 'utf8', { flag: 'w' })
-
-    res.send(`${minPort}-${firstPhone}`)
-})
-
+// lấy 1 phone
 app.get('/get-phone', (req, res) => {
     const data = fs.readFileSync(currentFilePath, 'utf8')
     if (JSON.parse(data).length === 0) {
@@ -218,12 +134,14 @@ app.get('/get-phone', (req, res) => {
     }
 })
 
+// lấy danh sách các phon hiện tại
 app.get('/get-list-current-phone', (req, res) => {
     const data = fs.readFileSync(currentFilePath, 'utf8')
     const listPhone = data ? JSON.parse(data) : []
     res.json(listPhone)
 })
 
+// active port lên
 app.get('/active/:port', (req, res) => {
     const port = req.params.port
     const fileName = `list_phone_${port}.txt`
