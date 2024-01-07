@@ -111,7 +111,8 @@ app.get('/reset', (req, res) => {
 
     files.forEach((file) => {
         const filePath = path.join(staticFolderPath, file)
-        fs.unlinkSync(filePath)
+        fs.writeFileSync(filePath, '', 'utf8')
+        console.log(`Cleared content of file: ${file}`)
     })
 
     res.send('reset phone thành công')
