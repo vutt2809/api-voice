@@ -3,6 +3,7 @@ const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
 const axios = require('axios')
+const { fail } = require('assert')
 const app = express()
 const port = 5000
 let counter = 0
@@ -315,7 +316,7 @@ app.post('/uploadFromPath', (req, res) => {
                     .then((response) => { })
                     .catch((error) => {});
               });
-              //fs.unlinkSync(filePath); // Xóa file sau khi upload thành công
+              fs.unlinkSync(absolutePath); // Xóa file sau khi upload thành công
               
             //fs.unlinkSync(filePath); // Xóa file sau khi upload thành công
           })
@@ -391,6 +392,16 @@ app.get('/getPhoneNumber/:port', (req, res) => {
       // Nếu không tồn tại, trả về thông báo lỗi
       res.status(404).json({ error: 'Không tìm thấy số điện thoại cho port này.' });
     }
+});
+
+app.get('/getInfoStatics', (req, res) => {
+    
+    let fileLog = path.resolve('./static/count.txt');
+    const countPhone = parseInt(readLogFile(fileLog));
+    fileLog = path.resolve('./static/uploaded_files.txt');
+    const countSucess = readLogFile(fileLog).split('@#&').length;
+    res.json({
+        total: countPhone, success: countSucess, failed:(countPhone-countSucess)});
 });
   
 app.get('/getvoice/:port/:num', (req, res) => {

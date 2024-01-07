@@ -1,0 +1,1 @@
+Có lỗi khi lấy voice không tồn tại num tại port: null[Sun Jan 07 2024 11:55:40 GMT 0700 (Indochina Time)]
