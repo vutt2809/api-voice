@@ -6,6 +6,8 @@ const axios = require('axios')
 const app = express()
 const port = 5000
 app.use(express.json())
+const urlLocal = 'http://localhost:5000';
+const urlServer = 'http://localhost:5000';
 
 app.get('/', (req, res) => {
     axios
@@ -156,66 +158,206 @@ app.post('/upload', upload.single('file'), (req, res) => {
     }
     const filePath = req.file.path
     // Thành công, trả về thông báo
-    res.send(`File đã được tải lên thành công tại|->http://localhost:3000/${filePath}.`)
+    res.send(`File đã được tải lên thành công tại|->${urlServer}/${filePath}.`)
 })
 
 // Route để nhận đường dẫn và gọi API upload
 app.post('/uploadFromPath', (req, res) => {
-    console.log(req.body)
-    const filePath = req.body.filePath
+  console.log(req.body);
+  const folderPath = req.body.folderPath;
+  
 
-    // Kiểm tra xem có đường dẫn được gửi lên không
-    if (!filePath) {
-        return res.status(400).json({ error: 'Thiếu đường dẫn file.' })
-    }
+  // Kiểm tra xem có đường dẫn thư mục được gửi lên không
+  if (!folderPath) {
+      return res.status(400).json({ error: 'Thiếu đường dẫn thư mục.' });
+  }
 
-    // Tạo đường dẫn tuyệt đối từ đường dẫn gửi lên
-    const absolutePath = path.resolve(filePath)
+  // Tạo đường dẫn tuyệt đối từ đường dẫn thư mục gửi lên
+  const absoluteFolderPath = path.resolve(folderPath);
 
-    // Kiểm tra xem file có tồn tại không
-    if (!fs.existsSync(absolutePath)) {
-        return res.status(404).json({ error: 'File không tồn tại.' })
-    }
+  // Kiểm tra xem thư mục có tồn tại không
+  if (!fs.existsSync(absoluteFolderPath)) {
+      return res.status(404).json({ error: 'Thư mục không tồn tại.' });
+  }
 
-    // Gọi API upload
-    const uploadApiUrl = 'http://localhost:3000/upload' // Thay đổi thành URL thực tế của API upload
-    const formData = new FormData()
-    formData.append('file', fs.createReadStream(absolutePath))
-    // const formDataHeaders = formData.getHeaders();
-    // console.log(formDataHeaders);
-    // Create a readable stream for the file
-    const fileStream = fs.createReadStream(absolutePath)
-    let fileBuffer = Buffer.from([])
-    fileStream.on('data', (chunk) => {
+  // Đọc danh sách các file trong thư mục
+  fs.readdir(absoluteFolderPath, (err, files) => {
+      if (err) {
+          return res.status(500).json({ error: 'Lỗi khi đọc danh sách file trong thư mục.' });
+      }
+    const uploadedFileNames = [];
+      // Lặp qua từng file và thực hiện quy trình upload
+    files.forEach((fileName) => {
+      const absolutePath = path.join(absoluteFolderPath, fileName);
+
+
+      // Gọi API upload
+      const uploadApiUrl = `${urlServer}/upload`; // Thay đổi thành URL thực tế của API upload
+      const formData = new FormData()
+      formData.append('file', fs.createReadStream(absolutePath))
+      // const formDataHeaders = formData.getHeaders();
+      // console.log(formDataHeaders);
+      // Create a readable stream for the file
+      const fileStream = fs.createReadStream(absolutePath)
+      let fileBuffer = Buffer.from([])
+      fileStream.on('data', (chunk) => {
         fileBuffer = Buffer.concat([fileBuffer, chunk])
-    })
+      })
 
-    fileStream.on('end', () => {
+      fileStream.on('end', () => {
         // Convert the buffer to a base64-encoded string
         const fileBase64 = fileBuffer.toString('base64')
 
         // Build the form data string
         const formDataString = `--myboundary\r\nContent-Disposition: form-data; name="file"; filename="${path.basename(
-            absolutePath,
+          absolutePath,
         )}"\r\nContent-Type: application/octet-stream\r\n\r\n${fileBase64}\r\n--myboundary--`
 
         // Make the Axios request
         axios
-            .post(uploadApiUrl, formDataString, {
-                headers: {
-                    'Content-Type': `multipart/form-data; boundary=myboundary`,
-                },
-            })
-            .then((response) => {
-                fs.unlinkSync(absolutePath)
-                res.json({ message: response.data })
-            })
-            .catch((error) => {
-                console.log('ERROR: ' + error)
-                res.status(500).json({ error: 'Lỗi khi gọi API upload.' })
-            })
-    })
-})
+          .post(uploadApiUrl, formDataString, {
+            headers: {
+              'Content-Type': `multipart/form-data; boundary=myboundary`,
+            },
+          })
+          .then((response) => {
+              console.log(`File '${fileName}' đã được tải lên thành công.`);
+              const match = fileName.match(/COM(\d+)/);
+            // Kiểm tra xem có kết quả khớp không và lấy số từ kết quả
+              const port = match ? match[1] : null;
+              const url=`${response.data.split('|->')[1]}`
+              axios.get(`${urlServer}/getPhoneNumber/${port}`)
+                  .then((response) => { 
+                    axios.get(`${urlServer}/writeLogUploadedFiles?msg=${JSON.stringify({port:port,phone:response.data.phoneNumber,url:url})}`)
+                    .then((response) => { })
+                    .catch((error) => {});
+              })
+                  .catch((error) => {
+                      console.log("gọi đi ->");
+                    axios.get(`${urlServer}/writeFile?msg=${encodeURI(`Có lỗi khi lấy voice không tồn tại num tại port: ${port}[${new Date()}]\n`)}&path=${encodeURI(`./static/log_error_getvoice.txt`)}`)
+                    .then((response) => { })
+                    .catch((error) => {});
+              });
+              //fs.unlinkSync(filePath); // Xóa file sau khi upload thành công
+              
+            //fs.unlinkSync(filePath); // Xóa file sau khi upload thành công
+          })
+          
+          .catch((error) => {
+            console.error(`Lỗi khi tải lên file '${fileName}':`, error.message);
+          });})
+      });
+    });
+    console.log();
+    // Kiểm tra xem file log đã tồn tại chưa
+    
+      res.json({ message: 'Quá trình upload hoàn thành.' });
+  });
+
+app.get('/writeLogUploadedFiles', (req, res) => {
+  const data = req.query.msg;
+    const logFilePath = path.resolve('./static/uploaded_files.txt');
+    if (!fs.existsSync(logFilePath)) {
+      // Nếu chưa tồn tại, tạo mới và ghi vào
+      fs.writeFileSync(logFilePath, data+'@#&');
+    } else {
+        // Nếu đã tồn tại, ghi thêm vào
+        fs.appendFileSync(logFilePath, data+'@#&');
+    }
+});
+const writeLogFile = (path1,data) => {
+    const logFilePath = path.resolve(path1);
+    if (!fs.existsSync(logFilePath)) {
+      // Nếu chưa tồn tại, tạo mới và ghi vào
+      fs.writeFileSync(logFilePath, data);
+    } else {
+        // Nếu đã tồn tại, ghi thêm vào
+        fs.appendFileSync(logFilePath, data);
+    }
+}
+app.get('/writeFile', (req, res) => {
+    const data = req.query.msg;
+    const path = req.query.path;
+    console.log(data,path);
+    writeLogFile(path,data)
+  });
+const readLogFile = (logFilePath) => {
+    try {
+      const data = fs.readFileSync(logFilePath, 'utf8');
+      
+  
+      return data;
+    } catch (error) {
+      console.error('Error reading log file:', error.message);
+      return 'no_data';
+    }
+  };
+app.get('/getPhoneNumber/:port', (req, res) => {
+    const port = req.params.port;
+    const fileLog=path.resolve('./static/new_phone.txt');
+    // Đọc nội dung của file log
+    const phoneNumbers = {};
+    const phoneNumbersData = readLogFile(fileLog);
+    const listData = phoneNumbersData.split(',');
+    listData.forEach((line) => {
+        const [port, phoneNumber] = line.split('-');
+        if (port && phoneNumber) {
+          phoneNumbers[port.trim()] = phoneNumber.trim();
+        }
+      });
+  
+    // Kiểm tra xem port có tồn tại trong file log không
+    if (phoneNumbers[port]) {
+      // Nếu tồn tại, trả về số điện thoại
+      res.json({ phoneNumber: phoneNumbers[port] });
+    } else {
+      // Nếu không tồn tại, trả về thông báo lỗi
+      res.status(404).json({ error: 'Không tìm thấy số điện thoại cho port này.' });
+    }
+});
+  
+app.get('/getvoice/:port/:num', (req, res) => {
+    const port = req.params.port;
+    const num = req.params.num;
+    console.log(req);
+    const fileLog=path.resolve('./static/uploaded_files.txt');
+    // Đọc nội dung của file log
+    const phoneNumbers = {};
+    const phoneNumbersData = readLogFile(fileLog);
+    const listData = phoneNumbersData.split('@#&');
+    console.log(listData,port,num);
+    let result = [];
+    if (port == 0 && num == 0) {
+        
+        result = listData.map(i => i.trim()!==''?JSON.parse(i):null);
+    }
+    else {
+        const tmp = listData.filter(i => {
+            const item = i.trim() !== '' ? JSON.parse(i) : { port: -1, phone: -1 };
+            console.log(item.port , port , item.phone , num);
+            if (item.port == port && item.phone == num)
+            {
+                //item.url = item.url.replaceAll("\\", "/");
+                return item;
+            }
+        })
+        console.log(tmp);
+        if (tmp.length > 0) {
+            //tmp[0].url=tmp[0].url.replaceAll("\\","/")
+            result = tmp[0];result = { ...JSON.parse(result) }
+        result.url=result.url.replaceAll("\\", "/");
+        }
+        
+    }
+  
+    // Kiểm tra xem port có tồn tại trong file log không
+    
+    res.json(result);
+    // } else {
+    //   // Nếu không tồn tại, trả về thông báo lỗi
+    //   res.status(404).json({ error: 'Không tìm thấy số điện thoại cho port này.' });
+    // }
+});
 
 app.listen(5000, () => {
     console.log('Server is running on port 5000')
