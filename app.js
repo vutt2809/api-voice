@@ -17,14 +17,13 @@ const newPhonetFilePath = path.join(staticFolderPath, 'new_phone.txt')
 
 app.get('/', (req, res) => {
     let checkData = ''
-    const filePath = path.join(staticFolderPath, file)
 
     while (checkData.trim() !== '0|-1') {
         axios
             .get('https://www.firefox.fun/yhapi.ashx?act=getPhone&token=63e825cd6b0512c1eb5b85a0bbcb3b24_18800&iid=1008&did=vnm-1008-99991')
             .then((response) => {
-                checkData = response
-                const data = response.split('|')
+                checkData = response.data
+                const data = response.data.split('|')
                 console.log('dataPort', dataPort)
 
                 const port = data[data.length - 2]
@@ -37,6 +36,7 @@ app.get('/', (req, res) => {
 
                 axios.get(`http://www.firefox.fun/yhapi.ashx?act=addBlack&token=b7c94daad5e3dd71ffca9298976ec0d4_3&pkey=${id}&reason=used`)
 
+                const filePath = path.join(staticFolderPath, `list_phone${port}.txt`)
                 let phoneArray = []
                 for (let i = 0; i < 11; i++) {
                     let newPhone = phone + i.toString()
