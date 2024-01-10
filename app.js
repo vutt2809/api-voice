@@ -9,7 +9,7 @@ const port = 5000
 let counter = 0
 app.use(express.json())
 const urlLocal = 'http://localhost:5000'
-const urlServer = 'http://localhost:5000'
+const urlServer = 'http://trum99.ddns.net:5000'
 const staticFolderPath = path.join(__dirname, 'static')
 const countFilePath = path.join(staticFolderPath, 'count.txt')
 const currentFilePath = path.join(staticFolderPath, 'current_phone.txt')
@@ -278,7 +278,10 @@ app.post('/uploadFromPath', (req, res) => {
         // Lặp qua từng file và thực hiện quy trình upload
         files.forEach((fileName) => {
             const absolutePath = path.join(absoluteFolderPath, fileName)
-
+            if (!fs.existsSync(absolutePath)) {
+                console.error(`File '${fileName}' không tồn tại.`);
+                return;  // Bỏ qua file không tồn tại và tiếp tục với file khác
+            }
             // Gọi API upload
             const uploadApiUrl = `${urlServer}/upload` // Thay đổi thành URL thực tế của API upload
             const formData = new FormData()
@@ -286,6 +289,11 @@ app.post('/uploadFromPath', (req, res) => {
             // const formDataHeaders = formData.getHeaders();
             // console.log(formDataHeaders);
             // Create a readable stream for the file
+            try {
+                fs.readFileSync(absolutePath);
+            } catch (error) {
+                return ;
+            }
             const fileStream = fs.createReadStream(absolutePath)
             let fileBuffer = Buffer.from([])
             fileStream.on('data', (chunk) => {
@@ -293,6 +301,11 @@ app.post('/uploadFromPath', (req, res) => {
             })
 
             fileStream.on('end', () => {
+                try {
+                    fs.readFileSync(absolutePath);
+                } catch (error) {
+                    return ;
+                }
                 // Convert the buffer to a base64-encoded string
                 const fileBase64 = fileBuffer.toString('base64')
 
