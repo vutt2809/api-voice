@@ -3,57 +3,51 @@ const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
 const axios = require('axios')
-const { fail } = require('assert')
+const cors = require('cors')
 const app = express()
 const port = 5000
 let counter = 0
 app.use(express.json())
-const urlLocal = 'http://localhost:5000'
-const urlServer = 'http://localhost:5000'
+
+app.use(cors())
+const urlServer = 'http://trum99.ddns.net:5000'
 const staticFolderPath = path.join(__dirname, 'static')
 const countFilePath = path.join(staticFolderPath, 'count.txt')
 const currentFilePath = path.join(staticFolderPath, 'current_phone.txt')
 const newPhonetFilePath = path.join(staticFolderPath, 'new_phone.txt')
 
-app.get('/', (req, res) => {
-    let checkData = ''
+app.get('/getAPI', async (req, res) => {
+    while (true) {
+        const response = await axios.get(
+            'https://www.firefox.fun/yhapi.ashx?act=getPhone&token=63e825cd6b0512c1eb5b85a0bbcb3b24_18800&iid=1008&did=vnm-1008-99991',
+        )
+        const responseData = response.data
+        console.log('responseData: ', responseData)
+        if (responseData) {
+            if (responseData.trim() === '0|-1') {
+                console.log('Stopping')
+                res.send('Đã lấy hết phone')
+                break
+            }
+            const data = responseData.split('|')
 
-    for (let i = 0; i < 100; i++) {
-        axios
-            .get('https://www.firefox.fun/yhapi.ashx?act=getPhone&token=63e825cd6b0512c1eb5b85a0bbcb3b24_18800&iid=1008&did=vnm-1008-99991')
-            .then((response) => {
-                console.log('===================> check lan ', i)
-                checkData = response.data
-                console.log('check Data: ', checkData)
-                const data = response.data.split('|')
-                console.log('data array:', data)
+            const port = data[data.length - 2].replace('COM', '')
+            const phone = data[data.length - 1]
+            const id = data[1]
 
-                const port = data[data.length - 2].replace('COM', '')
-                const phone = data[data.length - 1]
-                const id = data[1]
+            axios.get(`http://www.firefox.fun/yhapi.ashx?act=addBlack&token=b7c94daad5e3dd71ffca9298976ec0d4_3&pkey=${id}&reason=used`)
 
-                console.log('port: ', port)
-                console.log('phone: ', phone)
-                console.log('id: ', id)
+            const filePath = path.join(staticFolderPath, `list_phone_${port}.txt`)
 
-                axios.get(`http://www.firefox.fun/yhapi.ashx?act=addBlack&token=b7c94daad5e3dd71ffca9298976ec0d4_3&pkey=${id}&reason=used`)
-
-                const filePath = path.join(staticFolderPath, `list_phone_${port}.txt`)
-
-                if (port !== 0) {
-                    let phoneArray = []
-                    for (let i = 0; i < 11; i++) {
-                        let newPhone = phone + `${i}`
-                        phoneArray.push(newPhone.toString())
-                        fs.writeFileSync(filePath, phoneArray.join(','), 'utf8')
-                    }
-                }
-            })
-            .catch((error) => {
-                console.error(error)
-            })
+            let phoneArray = []
+            phoneArray.push(phone.toString())
+            for (let i = 0; i < 11; i++) {
+                let newPhone = phone + `${i}`
+                phoneArray.push(newPhone.toString())
+                fs.writeFileSync(filePath, phoneArray.join(','), 'utf8')
+            }
+        }
     }
-    res.send('Đã lấy phone')
 })
 
 // Láy phone đã active
