@@ -1,1 +1,2 @@
 
+Có lỗi khi lấy voice không tồn tại num tại port: 22[Sat Jan 13 2024 12:08:04 GMT 0700 (Indochina Time)]

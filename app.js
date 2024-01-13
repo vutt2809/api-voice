@@ -8,12 +8,8 @@ const app = express()
 const port = 5000
 let counter = 0
 app.use(express.json())
-<<<<<<< HEAD
+const FormData = require('form-data');
 const urlLocal = 'http://localhost:5000'
-=======
-
-app.use(cors())
->>>>>>> e25239434ba9628aa468e4b08b4816d2de861153
 const urlServer = 'http://trum99.ddns.net:5000'
 const staticFolderPath = path.join(__dirname, 'static')
 const countFilePath = path.join(staticFolderPath, 'count.txt')
@@ -168,15 +164,22 @@ app.get('/active/:port', (req, res) => {
     }
 })
 
+// const storage = multer.diskStorage({
+//     destination: (req, file, cb) => {
+//         cb(null, 'uploads/')
+//     },
+//     filename: (req, file, cb) => {
+//         cb(null, Date.now() + '-' + file.originalname)
+//     },
+// })
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/')
+        cb(null, 'uploads/');
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname)
+        cb(null, Date.now() + '-' + file.originalname);
     },
-})
-
+});
 const upload = multer({ storage: storage })
 app.post('/upload', upload.single('file'), (req, res) => {
     console.log('dô hog', req.file)
@@ -184,9 +187,29 @@ app.post('/upload', upload.single('file'), (req, res) => {
     if (!req.file) {
         return res.status(400).send('Không có file được tải lên.')
     }
-    const filePath = req.file.path
+    //const filePath = req.file.path
+    // Giải mã dữ liệu base64 thành dữ liệu nhị phân
+    const base64Data = fs.readFileSync(req.file.path)
+    // const file = new File(
+    //     [Uint8Array.from(atob(base64Str), (m) => m.codePointAt(0))],
+    //     'myfilename.jpeg',
+    //     { type: "image/jpeg" }
+    //  );
+    const binaryData = Buffer.from(base64Data, 'base64').toString('binary');
+    //const bufferData = Buffer.from(base64Data, 'base64');
+    // Tạo tên tệp và lưu vào thư mục uploads
+    const fileName = Date.now() + '-' + req.file.originalname;
+    const filePath1 = path.join('uploads', fileName);
+    console.log(binaryData);
+    fs.writeFile(filePath1, binaryData, {encoding: 'base64'}, function(err) {
+        console.log('File created',binaryData);
+    });
+
+    // Lưu dữ liệu nhị phân vào tệp
+    //fs.writeFileSync(req.file.path, binaryData);
+
     // Thành công, trả về thông báo
-    res.send(`File đã được tải lên thành công tại|->${urlServer}/${filePath}.`)
+    res.send(`File đã được tải lên thành công tại|->${urlServer}/${filePath1}`)
 })
 
 // Route để nhận đường dẫn và gọi API upload
@@ -246,7 +269,7 @@ app.post('/uploadFromPath', (req, res) => {
                 }
                 // Convert the buffer to a base64-encoded string
                 const fileBase64 = fileBuffer.toString('base64')
-
+                console.log("truyền lên",fileBuffer,fileBase64);
                 // Build the form data string
                 const formDataString = `--myboundary\r\nContent-Disposition: form-data; name="file"; filename="${path.basename(
                     absolutePath,
@@ -402,12 +425,69 @@ app.get('/getvoice/:port/:num', (req, res) => {
             result = tmp[0]
             result = { ...JSON.parse(result) }
             result.url = result.url.replaceAll('\\', '/')
+
+            pathFileVoice = result.url.replace(urlServer, ".");
+            absolutePathVoice=path.resolve(pathFileVoice)
+            // const fileStream = fs.createReadStream(absolutePathVoice)
+            // let fileBuffer = Buffer.from([])
+            // fileStream.on('data', (chunk) => {
+            //     fileBuffer = Buffer.concat([fileBuffer, chunk])
+            // })
+
+            // fileStream.on('end', () => {
+            //     try {
+            //         fs.readFileSync(absolutePathVoice);
+            //     } catch (error) {
+            //         return ;
+            //     }
+            //     // Convert the buffer to a base64-encoded string
+            //     const fileBase64 = fileBuffer.toString('base64')
+            //     console.log("truyền lên",fileBuffer,fileBase64);
+            //     // Build the form data string
+            //      // Tạo chuỗi formDataString
+            // const formDataString = `--myboundary\r\nContent-Disposition: form-data; name="file"; filename="${path.basename(absolutePathVoice)}"\r\nContent-Type: application/octet-stream\r\n\r\n${fileBase64}\r\n--myboundary\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n--myboundary\r\nContent-Disposition: form-data; name="response_format"\r\n\r\ntext\r\n--myboundary--`;
+
+            //     // Make the Axios request
+            //     axios
+            //     .post("https://api.openai.com/v1/audio/transcriptions", formDataString, {
+            //         headers: {
+            //             'Content-Type': `multipart/form-data; boundary=myboundary`,
+            //             'Authorization':'Bearer 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'
+            //         },
+            //     })
+            //     .then((response) => {console.log("res->",response); })
+            //     .catch ((error) => { console.log("error->",error.response);})
+            // })
+            const formData = new FormData();
+            formData.append('file', fs.createReadStream(absolutePathVoice), {
+                filename: path.basename(absolutePathVoice),
+                contentType: 'audio/wav', // Replace with the actual MIME type of your file
+              });
+              formData.append('model', 'whisper-1');
+              formData.append('response_format', 'text');
+axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
+  headers: {
+    //...formData.getHeaders(),
+    'Authorization': 'Bearer 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',
+  },
+})
+  .then(response => {
+      console.log("res->", response.data);
+      result.text = response.data
+      res.json(result)
+  })
+  .catch(error => {
+      console.log("error->", error.response.data);
+      res.json(result)
+  });
+                
+                
         }
     }
 
     // Kiểm tra xem port có tồn tại trong file log không
 
-    res.json(result)
+   
     // } else {
     //   // Nếu không tồn tại, trả về thông báo lỗi
     //   res.status(404).json({ error: 'Không tìm thấy số điện thoại cho port này.' });
