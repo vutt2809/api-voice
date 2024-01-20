@@ -18,8 +18,14 @@ const countFilePath = path.join(staticFolderPath, 'count.txt')
 // const currentFilePath = path.join(staticFolderPath, 'current_phone.txt')
 const newPhonetFilePath = path.join(staticFolderPath, 'new_phone.txt')
 
+let countPort = 0
+let countPortSuccess = 0
+let countPortFail = 0
+
 app.get('/getAPI', async (req, res) => {
     counter = 0
+    countPortSuccess = 0
+    countPortFail = 0
     let listAllPhones = []
     while (true) {
         const response = await axios.get('http://www.worldcode.win/yhapi.ashx?act=getPhone&token=d0ba68cd9a3cce002431d60f1dcb8df0_347&iid=1000&country=vnm')
@@ -47,6 +53,7 @@ app.get('/getAPI', async (req, res) => {
                 let newPhone = phone + `${i}`
                 phoneArray.push(newPhone.toString())
                 listAllPhones.push(`${port}-${newPhone.toString()}`)
+                countPort += 1
                 fs.writeFileSync(filePath, phoneArray.join(','), 'utf8')
             }
         }
@@ -105,13 +112,17 @@ app.get('/get-list-phone-active', (req, res) => {
 app.get('/reset', (req, res) => {
     const files = fs.readdirSync(staticFolderPath)
     counter = 0
+    countPort = 0
+    countPortSuccess = 0
+    countPortFail = 0
+
     files.forEach((file) => {
         const filePath = path.join(staticFolderPath, file)
         fs.writeFileSync(filePath, '', 'utf8')
         console.log(`Cleared content of file: ${file}`)
 
         // xử lý riêng
-        fs.writeFileSync(currentFilePath, '[]', 'utf8')
+        // fs.writeFileSync(currentFilePath, '[]', 'utf8')
         fs.writeFileSync(countFilePath, '0', 'utf8')
 
         const match = file.match(/^list_phone_(\d+)\.txt$/)
@@ -215,6 +226,14 @@ app.get('/get-list-current-phone', (req, res) => {
     res.json(phoneList)
 })
 
+app.get('/statistic', (req, res) => {
+    res.json({
+        total: countPort,
+        success: countPortSuccess,
+        fail: countPortFail,
+    })
+})
+
 // active port lên
 app.get('/active/:port/:status', (req, res) => {
     try {
@@ -248,8 +267,10 @@ app.get('/active/:port/:status', (req, res) => {
                 if (fs.existsSync(filePath) && status) {
                     if (status === 'success') {
                         countSucess += 1
+                        countPortSuccess += 1
                     } else if (status === 'fail') {
                         countFail += 1
+                        countPortFail += 1
                     }
                 }
                 fs.writeFileSync(filePortPath, `${countSucess},${countFail}`, 'utf8', { flag: 'w' })
@@ -565,7 +586,7 @@ app.get('/getvoice/:port/:num', (req, res) => {
                 .post('https://api.openai.com/v1/audio/transcriptions', formData, {
                     headers: {
                         //...formData.getHeaders(),
-                        Authorization: 'Bearer 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',
+                        Authorization: 'Bearer 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',
                     },
                 })
                 .then((response) => {
