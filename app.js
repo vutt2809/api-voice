@@ -14,7 +14,7 @@ app.use(cors())
 const FormData = require('form-data')
 const urlServer = 'http://trum99.ddns.net:5000'
 const staticFolderPath = path.join(__dirname, 'static')
-const countFilePath = path.join(staticFolderPath, 'count.txt')
+// const countFilePath = path.join(staticFolderPath, 'count.txt')
 // const currentFilePath = path.join(staticFolderPath, 'current_phone.txt')
 const newPhonetFilePath = path.join(staticFolderPath, 'new_phone.txt')
 
@@ -28,7 +28,9 @@ app.get('/getAPI', async (req, res) => {
     countPortFail = 0
     let listAllPhones = []
     while (true) {
-        const response = await axios.get('http://www.worldcode.win/yhapi.ashx?act=getPhone&token=d0ba68cd9a3cce002431d60f1dcb8df0_347&iid=1000&country=vnm')
+        // const response = await axios.get('http://www.worldcode.win/yhapi.ashx?act=getPhone&token=d0ba68cd9a3cce002431d60f1dcb8df0_347&iid=1000&country=vnm')
+        const response = await axios.get('http://www.worldcode.win/yhapi.ashx?act=getPhone&token=d0ba68cd9a3cce002431d60f1dcb8df0_347&iid=1000&country=idn')
+
         const responseData = response.data
         if (responseData) {
             if (responseData.trim() === '0|-1') {
@@ -46,14 +48,16 @@ app.get('/getAPI', async (req, res) => {
             const filePath = path.join(staticFolderPath, `list_phone_${port}.txt`)
             const filePortPath = path.join(staticFolderPath, `status_${port}.txt`)
             fs.writeFileSync(filePortPath, '0,0')
+            countPort += 1
 
             let phoneArray = []
+
             phoneArray.push(phone.toString())
-            for (let i = 0; i < 11; i++) {
+            for (let i = 0; i < 10; i++) {
+                countPort += 1
                 let newPhone = phone + `${i}`
                 phoneArray.push(newPhone.toString())
                 listAllPhones.push(`${port}-${newPhone.toString()}`)
-                countPort += 1
                 fs.writeFileSync(filePath, phoneArray.join(','), 'utf8')
             }
         }
@@ -95,8 +99,8 @@ app.get('/get-list-phone-active', (req, res) => {
                 const portStatusData = fs.readFileSync(portStatusFilePath, 'utf-8')
                 const portValue = portStatusData.split(',')
 
-                phoneList.push({ port, num: firstPhone, success: portValue[0], failed: portValue[1] })
-                fs.writeFileSync(filePath, 'disable_' + numbers.join(','), 'utf8')
+                phoneList.push({ port, num: firstPhone, success: portValue[0], failed: portValue[1], sum: 11 })
+                // fs.writeFileSync(filePath, 'disable_' + numbers.join(','), 'utf8')
             }
 
             if (data.length === 0 || data.trim() === 'disable_') {
@@ -109,7 +113,7 @@ app.get('/get-list-phone-active', (req, res) => {
 })
 
 // Reset về đàu
-app.get('/reset', (req, res) => {
+app.get('/reset-1', (req, res) => {
     const files = fs.readdirSync(staticFolderPath)
     counter = 0
     countPort = 0
@@ -121,13 +125,10 @@ app.get('/reset', (req, res) => {
         fs.writeFileSync(filePath, '', 'utf8')
         console.log(`Cleared content of file: ${file}`)
 
-        // xử lý riêng
-        // fs.writeFileSync(currentFilePath, '[]', 'utf8')
-        fs.writeFileSync(countFilePath, '0', 'utf8')
-
         const match = file.match(/^list_phone_(\d+)\.txt$/)
         const matchStatus = file.match(/^status_(\d+)\.txt$/)
-        if (match || matchStatus) {
+        const matchCount = file.match(/^(\d{4}-\d{2}-\d{2})_count.txt$/)
+        if (match || matchStatus || matchCount) {
             const filePa = path.join(staticFolderPath, file)
             fs.unlinkSync(filePa)
             console.log(`Deleted file: ${file}`)
@@ -138,9 +139,20 @@ app.get('/reset', (req, res) => {
 })
 
 // lấy 1 phone
+function getCurrentDate() {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
+
+// lấy 1 phone
 app.get('/get-phone', (req, res) => {
     let minPort = Infinity
     let minPortFileName = ''
+    let currentDate = getCurrentDate()
+
     fs.readdirSync(staticFolderPath).forEach((file) => {
         const match = file.match(/^list_phone_(\d+)\.txt$/)
         if (match) {
@@ -181,17 +193,21 @@ app.get('/get-phone', (req, res) => {
     const firstPhone = listPhones.shift()
     fs.writeFileSync(filePath, 'disable_' + listPhones.join(','), 'utf8')
 
-    // Ghi đè hoặc tạo mới file
-    const newFilePath = path.join(staticFolderPath, 'new_phone.txt')
-    const newPhoneData = `${minPort}-${firstPhone}\n`
-    fs.writeFileSync(newFilePath, newPhoneData, { flag: 'a' })
-
-    // Ghi đè hoặc tạo mới file count.txt
-    const countFilePath = path.join(staticFolderPath, 'count.txt')
-    counter += 1
-    console.log(counter)
-
-    fs.writeFileSync(countFilePath, counter.toString(), 'utf8', { flag: 'w' })
+    // Lưu file count theo ngày và reset biến count nếu đã qua ngày mới
+    const newDate = getCurrentDate()
+    if (newDate !== currentDate) {
+        // Reset biến count và lưu file count mới
+        counter = 1
+        currentDate = newDate
+        const countFileName = `${newDate}_count.txt`
+        const countFilePath = path.join(staticFolderPath, countFileName)
+        fs.writeFileSync(countFilePath, counter.toString(), 'utf8', { flag: 'w' })
+    } else {
+        // Ghi đè hoặc tạo mới file count.txt
+        const countFilePath = path.join(staticFolderPath, `${currentDate}_count.txt`)
+        counter += 1
+        fs.writeFileSync(countFilePath, counter.toString(), 'utf8', { flag: 'w' })
+    }
 
     res.send(`${minPort}-${firstPhone}`)
 })
@@ -205,18 +221,15 @@ app.get('/get-list-current-phone', (req, res) => {
             const port = match[1]
             const filePath = path.join(staticFolderPath, file)
             const data = fs.readFileSync(filePath, 'utf8')
-            if (!data.startsWith('disable_')) {
-                const numbers = data.replace(/^disable_/, '').split(',')
-                const firstPhone = numbers[0]
+            const numbers = data.replace(/^disable_/, '').split(',')
+            const firstPhone = numbers[0]
 
-                // Kiểm tra trạng thái của port
-                const portStatusFilePath = path.join(staticFolderPath, `status_${port}.txt`)
-                const portStatusData = fs.readFileSync(portStatusFilePath, 'utf-8')
-                const portValue = portStatusData.split(',')
+            // Kiểm tra trạng thái của port
+            const portStatusFilePath = path.join(staticFolderPath, `status_${port}.txt`)
+            const portStatusData = fs.readFileSync(portStatusFilePath, 'utf-8')
+            const portValue = portStatusData.split(',')
 
-                phoneList.push({ port, num: firstPhone, success: portValue[0], failed: portValue[1] })
-                // fs.writeFileSync(filePath, 'disable_' + numbers.join(','), 'utf8')
-            }
+            phoneList.push({ port, num: firstPhone, success: portValue[0], failed: portValue[1], sum: 11 })
 
             if (data.length === 0 || data.trim() === 'disable_') {
                 fs.unlinkSync(filePath)
@@ -304,29 +317,41 @@ app.post('/upload', upload.single('file'), (req, res) => {
     if (!req.file) {
         return res.status(400).send('Không có file được tải lên.')
     }
-    //const filePath = req.file.path
-    // Giải mã dữ liệu base64 thành dữ liệu nhị phân
-    const base64Data = fs.readFileSync(req.file.path)
-    // const file = new File(
-    //     [Uint8Array.from(atob(base64Str), (m) => m.codePointAt(0))],
-    //     'myfilename.jpeg',
-    //     { type: "image/jpeg" }
-    //  );
-    const binaryData = Buffer.from(base64Data, 'base64').toString('binary')
-    //const bufferData = Buffer.from(base64Data, 'base64');
-    // Tạo tên tệp và lưu vào thư mục uploads
-    const fileName = Date.now() + '-' + req.file.originalname
-    const filePath1 = path.join('uploads', fileName)
-    console.log(binaryData)
-    fs.writeFile(filePath1, binaryData, { encoding: 'base64' }, function (err) {
-        console.log('File created', binaryData)
+
+    const urlResult = `${urlServer}/${req.file.path.replaceAll('\\', '/')}`
+    console.log('-->', req.file)
+    const absolutePathVoice = path.resolve(req.file.path.replaceAll('\\', '/')) //filePath1.replaceAll('\\', '/')
+    console.log('-->', absolutePathVoice)
+
+    const formData = new FormData()
+    formData.append('file', fs.createReadStream(absolutePathVoice), {
+        filename: path.basename(absolutePathVoice),
+        contentType: 'audio/wav', // Replace with the actual MIME type of your file
     })
+    formData.append('model', 'whisper-1')
+    formData.append('response_format', 'text')
+    axios
+        .post('https://api.openai.com/v1/audio/transcriptions', formData, {
+            headers: {
+                //...formData.getHeaders(),
+                Authorization: 'Bearer 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',
+            },
+        })
+        .then((response) => {
+            console.log('res->', response.data)
+            ///result.text = response.data
+            res.json(`File đã được tải lên thành công tại|->${urlResult}|->${response.data}`)
+        })
+        .catch((error) => {
+            console.log('error->', error.response)
+            res.json(`File đã được tải lên thành công tại|->${urlResult}|->null`)
+        })
 
     // Lưu dữ liệu nhị phân vào tệp
     //fs.writeFileSync(req.file.path, binaryData);
 
     // Thành công, trả về thông báo
-    res.send(`File đã được tải lên thành công tại|->${urlServer}/${filePath1}`)
+    //res.send(`File đã được tải lên thành công tại|->${urlResult}`)
 })
 
 // Route để nhận đường dẫn và gọi API upload
@@ -341,6 +366,7 @@ app.post('/uploadFromPath', (req, res) => {
 
     // Tạo đường dẫn tuyệt đối từ đường dẫn thư mục gửi lên
     const absoluteFolderPath = path.resolve(folderPath)
+    console.log('---->', absoluteFolderPath)
 
     // Kiểm tra xem thư mục có tồn tại không
     if (!fs.existsSync(absoluteFolderPath)) {
@@ -405,11 +431,19 @@ app.post('/uploadFromPath', (req, res) => {
                         // Kiểm tra xem có kết quả khớp không và lấy số từ kết quả
                         const port = match ? match[1] : null
                         const url = `${response.data.split('|->')[1]}`
+                        const text = `${response.data.split('|->')[2]}`
                         axios
                             .get(`${urlServer}/getPhoneNumber/${port}`)
                             .then((response) => {
                                 axios
-                                    .get(`${urlServer}/writeLogUploadedFiles?msg=${JSON.stringify({ port: port, phone: response.data.phoneNumber, url: url })}`)
+                                    .get(
+                                        `${urlServer}/writeLogUploadedFiles?msg=${JSON.stringify({
+                                            port: port,
+                                            phone: response.data.phoneNumber,
+                                            url: url,
+                                            text: text,
+                                        })}`,
+                                    )
                                     .then((response) => {})
                                     .catch((error) => {})
                             })
@@ -502,11 +536,24 @@ app.get('/getPhoneNumber/:port', (req, res) => {
     }
 })
 
-app.get('/getInfoStatics', (req, res) => {
-    let fileLog = path.resolve('./static/count.txt')
+// app.get('/getInfoStatics', (req, res) => {
+//     let fileLog = path.resolve('./static/count.txt')
+//     const countPhone = parseInt(readLogFile(fileLog))
+//     fileLog = path.resolve('./static/uploaded_files.txt')
+//     const countSucess = readLogFile(fileLog).split('@#&').length
+//     res.json({
+//         total: countPhone,
+//         success: countSucess,
+//         failed: countPhone - countSucess,
+//     })
+// })
+app.get('/getInfoStatics/:day', (req, res) => {
+    const time = req.params.day
+    let fileLog = path.resolve(`./static/${time}_count.txt`)
     const countPhone = parseInt(readLogFile(fileLog))
-    fileLog = path.resolve('./static/uploaded_files.txt')
-    const countSucess = readLogFile(fileLog).split('@#&').length
+    fileLog = path.resolve(`./static/${time}_uploaded_files.txt`)
+    const stringGet = readLogFile(fileLog)
+    const countSucess = (stringGet.match(new RegExp('@#&', 'g')) || []).length
     res.json({
         total: countPhone,
         success: countSucess,
@@ -517,13 +564,11 @@ app.get('/getInfoStatics', (req, res) => {
 app.get('/getvoice/:port/:num', (req, res) => {
     const port = req.params.port
     const num = req.params.num
-    console.log(req)
     const fileLog = path.resolve('./static/uploaded_files.txt')
     // Đọc nội dung của file log
     const phoneNumbers = {}
     const phoneNumbersData = readLogFile(fileLog)
     const listData = phoneNumbersData.split('@#&')
-    console.log(listData, port, num)
     let result = []
     if (port == 0 && num == 0) {
         result = listData.map((i) => (i.trim() !== '' ? JSON.parse(i) : null))
@@ -538,66 +583,8 @@ app.get('/getvoice/:port/:num', (req, res) => {
         })
         console.log(tmp)
         if (tmp.length > 0) {
-            //tmp[0].url=tmp[0].url.replaceAll("\\","/")
             result = tmp[0]
             result = { ...JSON.parse(result) }
-            result.url = result.url.replaceAll('\\', '/')
-
-            pathFileVoice = result.url.replace(urlServer, '.')
-            absolutePathVoice = path.resolve(pathFileVoice)
-            // const fileStream = fs.createReadStream(absolutePathVoice)
-            // let fileBuffer = Buffer.from([])
-            // fileStream.on('data', (chunk) => {
-            //     fileBuffer = Buffer.concat([fileBuffer, chunk])
-            // })
-
-            // fileStream.on('end', () => {
-            //     try {
-            //         fs.readFileSync(absolutePathVoice);
-            //     } catch (error) {
-            //         return ;
-            //     }
-            //     // Convert the buffer to a base64-encoded string
-            //     const fileBase64 = fileBuffer.toString('base64')
-            //     console.log("truyền lên",fileBuffer,fileBase64);
-            //     // Build the form data string
-            //      // Tạo chuỗi formDataString
-            // const formDataString = `--myboundary\r\nContent-Disposition: form-data; name="file"; filename="${path.basename(absolutePathVoice)}"\r\nContent-Type: application/octet-stream\r\n\r\n${fileBase64}\r\n--myboundary\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n--myboundary\r\nContent-Disposition: form-data; name="response_format"\r\n\r\ntext\r\n--myboundary--`;
-
-            //     // Make the Axios request
-            //     axios
-            //     .post("https://api.openai.com/v1/audio/transcriptions", formDataString, {
-            //         headers: {
-            //             'Content-Type': `multipart/form-data; boundary=myboundary`,
-            //             'Authorization':'Bearer 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'
-            //         },
-            //     })
-            //     .then((response) => {console.log("res->",response); })
-            //     .catch ((error) => { console.log("error->",error.response);})
-            // })
-            const formData = new FormData()
-            formData.append('file', fs.createReadStream(absolutePathVoice), {
-                filename: path.basename(absolutePathVoice),
-                contentType: 'audio/wav', // Replace with the actual MIME type of your file
-            })
-            formData.append('model', 'whisper-1')
-            formData.append('response_format', 'text')
-            axios
-                .post('https://api.openai.com/v1/audio/transcriptions', formData, {
-                    headers: {
-                        //...formData.getHeaders(),
-                        Authorization: 'Bearer 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',
-                    },
-                })
-                .then((response) => {
-                    console.log('res->', response.data)
-                    result.text = response.data
-                    res.json(result)
-                })
-                .catch((error) => {
-                    console.log('error->', error.response.data)
-                    res.json(result)
-                })
         }
     }
 
