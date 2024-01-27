@@ -14,7 +14,7 @@ app.use(cors())
 const FormData = require('form-data')
 const urlServer = 'http://trum99.ddns.net:5000'
 const staticFolderPath = path.join(__dirname, 'static')
-// const countFilePath = path.join(staticFolderPath, 'count.txt')
+const countFilePath = path.join(staticFolderPath, 'count.txt')
 // const currentFilePath = path.join(staticFolderPath, 'current_phone.txt')
 const newPhonetFilePath = path.join(staticFolderPath, 'new_phone.txt')
 
@@ -208,6 +208,7 @@ app.get('/get-phone', (req, res) => {
         counter += 1
         fs.writeFileSync(countFilePath, counter.toString(), 'utf8', { flag: 'w' })
     }
+    fs.appendFileSync(newPhonetFilePath, `${minPort}-${firstPhone}\n`, 'utf8')
 
     res.send(`${minPort}-${firstPhone}`)
 })
@@ -366,7 +367,6 @@ app.post('/uploadFromPath', (req, res) => {
 
     // Tạo đường dẫn tuyệt đối từ đường dẫn thư mục gửi lên
     const absoluteFolderPath = path.resolve(folderPath)
-    console.log('---->', absoluteFolderPath)
 
     // Kiểm tra xem thư mục có tồn tại không
     if (!fs.existsSync(absoluteFolderPath)) {
@@ -477,7 +477,7 @@ app.post('/uploadFromPath', (req, res) => {
 
 app.get('/writeLogUploadedFiles', (req, res) => {
     const data = req.query.msg
-    const logFilePath = path.resolve('./static/uploaded_files.txt')
+    const logFilePath = path.resolve(`./static/${getCurrentDate()}_uploaded_files.txt`)
     if (!fs.existsSync(logFilePath)) {
         // Nếu chưa tồn tại, tạo mới và ghi vào
         fs.writeFileSync(logFilePath, data + '@#&')
@@ -485,6 +485,7 @@ app.get('/writeLogUploadedFiles', (req, res) => {
         // Nếu đã tồn tại, ghi thêm vào
         fs.appendFileSync(logFilePath, data + '@#&')
     }
+    return null
 })
 const writeLogFile = (path1, data) => {
     const logFilePath = path.resolve(path1)
