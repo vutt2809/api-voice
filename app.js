@@ -23,6 +23,18 @@ let countPortSuccess = 0
 let countPortFail = 0
 
 app.get('/getAPI', async (req, res) => {
+    // Kiểm tra nếu còn phone thì không cho chạy mới
+    fs.readdirSync(staticFolderPath).forEach((file) => {
+        const match = file.match(/^list_phone_(\d+)\.txt$/)
+        if (match) {
+            res.status(400).send({
+                result: -1,
+                mesage: 'Hãy lấy hết phone trước khi chạy lấy phone mới',
+            })
+        }
+    })
+
+    fs.writeFileSync(newPhonetFilePath, '', 'utf8')
     counter = 0
     countPortSuccess = 0
     countPortFail = 0
@@ -114,6 +126,7 @@ app.get('/get-list-phone-active', (req, res) => {
 
 // Reset về đàu
 app.get('/reset-1', (req, res) => {
+    fs.writeFileSync(newPhonetFilePath, '', 'utf8')
     const files = fs.readdirSync(staticFolderPath)
     counter = 0
     countPort = 0
@@ -367,6 +380,7 @@ app.post('/uploadFromPath', (req, res) => {
 
     // Tạo đường dẫn tuyệt đối từ đường dẫn thư mục gửi lên
     const absoluteFolderPath = path.resolve(folderPath)
+    console.log('---->', absoluteFolderPath)
 
     // Kiểm tra xem thư mục có tồn tại không
     if (!fs.existsSync(absoluteFolderPath)) {
@@ -388,85 +402,63 @@ app.post('/uploadFromPath', (req, res) => {
             }
             // Gọi API upload
             const uploadApiUrl = `${urlServer}/upload` // Thay đổi thành URL thực tế của API upload
-            const formData = new FormData()
-            formData.append('file', fs.createReadStream(absolutePath))
-            // const formDataHeaders = formData.getHeaders();
-            // console.log(formDataHeaders);
-            // Create a readable stream for the file
-            try {
-                fs.readFileSync(absolutePath)
-            } catch (error) {
-                return
-            }
-            const fileStream = fs.createReadStream(absolutePath)
-            let fileBuffer = Buffer.from([])
-            fileStream.on('data', (chunk) => {
-                fileBuffer = Buffer.concat([fileBuffer, chunk])
+
+            const form = new FormData()
+            console.log('tải file', absolutePath)
+            // Append the file to the form
+            form.append('file', fs.createReadStream(absolutePath), {
+                filename: path.basename(absolutePath),
+                contentType: 'application/octet-stream',
             })
 
-            fileStream.on('end', () => {
-                try {
-                    fs.readFileSync(absolutePath)
-                } catch (error) {
-                    return
-                }
-                // Convert the buffer to a base64-encoded string
-                const fileBase64 = fileBuffer.toString('base64')
-                console.log('truyền lên', fileBuffer, fileBase64)
-                // Build the form data string
-                const formDataString = `--myboundary\r\nContent-Disposition: form-data; name="file"; filename="${path.basename(
-                    absolutePath,
-                )}"\r\nContent-Type: application/octet-stream\r\n\r\n${fileBase64}\r\n--myboundary--`
+            // Make the Axios request
+            axios
+                .post(uploadApiUrl, form, {
+                    headers: {
+                        ...form.getHeaders(),
+                    },
+                })
+                .then((response) => {
+                    console.log(`File '${fileName}' đã được tải lên thành công.`)
+                    const match = fileName.match(/COM(\d+)/)
+                    // Kiểm tra xem có kết quả khớp không và lấy số từ kết quả
+                    const port = match ? match[1] : null
+                    const url = `${response.data.split('|->')[1]}`
+                    const text = `${response.data.split('|->')[2]}`
+                    axios
+                        .get(`${urlServer}/getPhoneNumber/${port}`)
+                        .then((response) => {
+                            axios
+                                .get(
+                                    `${urlServer}/writeLogUploadedFiles?msg=${JSON.stringify({
+                                        port: port,
+                                        phone: response.data.phoneNumber,
+                                        url: url,
+                                        text: text,
+                                    })}`,
+                                )
+                                .then((response) => {})
+                                .catch((error) => {})
+                        })
+                        .catch((error) => {
+                            console.log('gọi đi ->')
+                            axios
+                                .get(
+                                    `${urlServer}/writeFile?msg=${encodeURI(
+                                        `Có lỗi khi lấy voice không tồn tại num tại port: ${port}[${new Date()}]\n`,
+                                    )}&path=${encodeURI(`./static/log_error_getvoice.txt`)}`,
+                                )
+                                .then((response) => {})
+                                .catch((error) => {})
+                        })
+                    fs.unlinkSync(absolutePath) // Xóa file sau khi upload thành công
 
-                // Make the Axios request
-                axios
-                    .post(uploadApiUrl, formDataString, {
-                        headers: {
-                            'Content-Type': `multipart/form-data; boundary=myboundary`,
-                        },
-                    })
-                    .then((response) => {
-                        console.log(`File '${fileName}' đã được tải lên thành công.`)
-                        const match = fileName.match(/COM(\d+)/)
-                        // Kiểm tra xem có kết quả khớp không và lấy số từ kết quả
-                        const port = match ? match[1] : null
-                        const url = `${response.data.split('|->')[1]}`
-                        const text = `${response.data.split('|->')[2]}`
-                        axios
-                            .get(`${urlServer}/getPhoneNumber/${port}`)
-                            .then((response) => {
-                                axios
-                                    .get(
-                                        `${urlServer}/writeLogUploadedFiles?msg=${JSON.stringify({
-                                            port: port,
-                                            phone: response.data.phoneNumber,
-                                            url: url,
-                                            text: text,
-                                        })}`,
-                                    )
-                                    .then((response) => {})
-                                    .catch((error) => {})
-                            })
-                            .catch((error) => {
-                                console.log('gọi đi ->')
-                                axios
-                                    .get(
-                                        `${urlServer}/writeFile?msg=${encodeURI(
-                                            `Có lỗi khi lấy voice không tồn tại num tại port: ${port}[${new Date()}]\n`,
-                                        )}&path=${encodeURI(`./static/log_error_getvoice.txt`)}`,
-                                    )
-                                    .then((response) => {})
-                                    .catch((error) => {})
-                            })
-                        fs.unlinkSync(absolutePath) // Xóa file sau khi upload thành công
+                    //fs.unlinkSync(filePath); // Xóa file sau khi upload thành công
+                })
 
-                        //fs.unlinkSync(filePath); // Xóa file sau khi upload thành công
-                    })
-
-                    .catch((error) => {
-                        console.error(`Lỗi khi tải lên file '${fileName}':`, error.message)
-                    })
-            })
+                .catch((error) => {
+                    console.error(`Lỗi khi tải lên file '${fileName}':`, error.message)
+                })
         })
     })
     console.log()
